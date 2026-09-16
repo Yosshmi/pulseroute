@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+bin/
+frontend/node_modules/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+artifacts/
+*.log
+*.exe
+coverage.out
