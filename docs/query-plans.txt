@@ -1,0 +1,24 @@
+Limit  (cost=0.41..42.97 rows=25 width=35) (actual time=0.098..0.117 rows=25.00 loops=1)
+  Buffers: shared hit=28
+  ->  Index Only Scan using events_type_time on events  (cost=0.41..339.13 rows=199 width=35) (actual time=0.097..0.114 rows=25.00 loops=1)
+        Index Cond: ((project_id = 'explain-project'::text) AND (type = 'invoice.failed'::text))
+        Heap Fetches: 25
+        Index Searches: 1
+        Buffers: shared hit=28
+Planning:
+  Buffers: shared hit=63
+Planning Time: 2.568 ms
+Execution Time: 0.132 ms
+
+Limit  (cost=0.41..287.23 rows=25 width=35) (actual time=0.038..0.327 rows=25.00 loops=1)
+  Buffers: shared hit=84
+  ->  Index Scan using events_project_time on events  (cost=0.41..2283.44 rows=199 width=35) (actual time=0.037..0.323 rows=25.00 loops=1)
+        Index Cond: (project_id = 'explain-project'::text)
+        Filter: (type = 'invoice.failed'::text)
+        Rows Removed by Filter: 2475
+        Index Searches: 1
+        Buffers: shared hit=84
+Planning:
+  Buffers: shared hit=4
+Planning Time: 0.736 ms
+Execution Time: 0.337 ms
