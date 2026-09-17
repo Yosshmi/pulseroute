@@ -24,3 +24,19 @@ func TestValidationAndCanonicalization(t *testing.T) {
 		t.Fatal("missing event ID")
 	}
 }
+
+func TestCanonicalPreservesLargeNumbers(t *testing.T) {
+	a := Input{EventID: "large", Type: "order.created", Data: json.RawMessage(`{"id":9007199254740993}`)}
+	_, first, e := a.Canonical()
+	if e != nil {
+		t.Fatal(e)
+	}
+	a.Data = json.RawMessage(`{"id":9007199254740992}`)
+	_, second, e := a.Canonical()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if first == second {
+		t.Fatal("large integer precision lost")
+	}
+}

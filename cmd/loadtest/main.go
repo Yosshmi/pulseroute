@@ -51,7 +51,7 @@ func main() {
 	}
 	close(jobs)
 	wg.Wait()
-	elapsed := time.Since(start).Seconds()
+	elapsed := time.Since(started).Seconds()
 	sort.Float64s(latencies)
 	result := map[string]any{"requests": *n, "errors": failures.Load(), "error_rate": float64(failures.Load()) / float64(*n), "elapsed_seconds": elapsed, "request_throughput_per_second": float64(*n) / elapsed, "p50_ms": latencies[len(latencies)/2], "p95_ms": latencies[int(float64(len(latencies)-1)*.95)]}
 	_ = json.NewEncoder(os.Stdout).Encode(result)

@@ -93,11 +93,20 @@ func TestIntegrationWorkflow(t *testing.T) {
 	account := security.Token("test_") + "@pulseroute.test"
 	check(201, "POST", "/api/auth/register", map[string]string{"email": account, "password": "integration-password"}, "")
 	project := check(201, "POST", "/api/projects", map[string]string{"name": "Integration"}, "")["id"].(string)
-	t.Cleanup(func() {
-		cleanup := context.Background()
-		_, _ = db.Exec(cleanup, "DELETE FROM delivery_attempts WHERE delivery_id IN(SELECT d.id FROM deliveries d JOIN events e ON e.id=d.event_id WHERE e.project_id=$1)", project)
-		_, _ = db.Exec(cleanup, "DELETE FROM dead_letters WHERE delivery_id IN(SELECT d.id FROM deliveries d JOIN events e ON e.id=d.event_id WHERE e.project_id=$1)", project)
-	})
+	defer func() {
+		cleanup, release := context.WithTimeout(context.Background(), 5*time.Second)
+		defer release()
+		for _, query := range []string{
+			"DELETE FROM delivery_attempts WHERE delivery_id IN(SELECT d.id FROM deliveries d JOIN events e ON e.id=d.event_id WHERE e.project_id=$1)",
+			"DELETE FROM dead_letters WHERE delivery_id IN(SELECT d.id FROM deliveries d JOIN events e ON e.id=d.event_id WHERE e.project_id=$1)",
+			"DELETE FROM deliveries WHERE event_id IN(SELECT id FROM events WHERE project_id=$1)",
+			"DELETE FROM events WHERE project_id=$1", "DELETE FROM endpoints WHERE project_id=$1", "DELETE FROM api_keys WHERE project_id=$1", "DELETE FROM projects WHERE id=$1",
+		} {
+			if _, err := db.Exec(cleanup, query, project); err != nil {
+				t.Errorf("clean fixture: %v", err)
+			}
+		}
+	}()
 	key := check(201, "POST", "/api/projects/"+project+"/api-keys", map[string]string{"name": "test"}, "")["key"].(string)
 	secret := "integration-receiver-secret"
 	destination := httptest.NewServer(receiver.New(secret))

@@ -12,7 +12,7 @@ RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 COPY migrations ./migrations
-RUN for app in api worker receiver migrate demo seed loadtest; do CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/$app ./cmd/$app; done
+RUN set -e; for app in api worker receiver migrate demo seed loadtest; do CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/$app ./cmd/$app; done
 
 FROM alpine:3.22 AS runtime
 RUN apk add --no-cache ca-certificates && addgroup -S app && adduser -S app -G app
