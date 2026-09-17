@@ -17,7 +17,7 @@ An earlier full successful run is
 | gofmt | No unformatted files in cmd, internal, migrations or tests. |
 | go vet | Passed for `./cmd/... ./internal/... ./migrations/... ./tests/...`. |
 | Go unit tests | 10 top-level test functions passed across API, configuration, retry, events and security packages. |
-| Real-service integration | `TestIntegrationWorkflow` passed; named `redis_atomic_bucket` and `lease_fencing` subtests also passed. Last local workflow elapsed 4.13s; test package 4.392s. |
+| Real-service integration | `TestIntegrationWorkflow` passed; named `redis_atomic_bucket` and `lease_fencing` subtests also passed. Last local workflow elapsed 4.13s; test package 4.387s. |
 | Race detector | Linux CI `go test -race -count=1` passed with PostgreSQL 18 and Redis 7 services. |
 | Backend builds | All seven commands passed: api, worker, demo, receiver, migrate, seed and loadtest. |
 | Frontend lint | ESLint passed. |
