@@ -348,7 +348,7 @@ function Dashboard() {
           <section className="metric" key={key}>
             <span>{label}</span>
             <strong>
-              {metrics.loading
+              {metrics.loading || metrics.error
                 ? "—"
                 : `${(metrics.data?.[key] ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}${key === "success_rate" ? "%" : key === "average_latency_ms" ? " ms" : ""}`}
             </strong>
@@ -363,6 +363,11 @@ function Dashboard() {
         ))}
       </div>
       <div className="notice">
+        {metrics.data && !metrics.error && (
+          <p>
+            {metrics.data.events_received} events received · {metrics.data.deliveries_attempted} attempts · {metrics.data.failed} failed attempts
+          </p>
+        )}
         At-least-once delivery · Metrics refresh on demand; totals may be cached
         for 5 seconds.
       </div>
