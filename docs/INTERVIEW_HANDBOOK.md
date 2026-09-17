@@ -456,3 +456,450 @@ delivery/event/endpoint IDs for worker logs. Do not paste credentials into logs.
 Practice aloud: "I would first distinguish time spent waiting in the queue from
 time spent in the outbound request. Their fixes are different." This is stronger
 than immediately suggesting more goroutines.
+
+
+## 12. Fifty-two interview questions and defensible answers
+
+Use these as practice prompts. Answer from the code, then demonstrate the behavior.
+
+### Go
+
+**1. Why use Go here?**
+
+Strong answer: Its standard HTTP stack, explicit errors and cancellation fit an I/O-heavy worker. Goroutines overlap outbound waits while a channel bounds work.
+
+Simple explanation: Go makes concurrent network work straightforward, but limits still matter.
+
+Reference: `cmd/api/main.go; internal/delivery/worker.go`.
+
+**2. Why avoid interfaces for every package?**
+
+Strong answer: The concrete pgx/Redis clients have one production implementation. Real-service tests exercise their semantics; interfaces are reserved for meaningful behavioral boundaries such as http.Handler.
+
+Simple explanation: An interface should solve a problem, not decorate every struct.
+
+Reference: `internal/database/database.go; internal/api/server.go`.
+
+**3. Why use a pointer to bool in PATCH input?**
+
+Strong answer: Omitted active must retain the old value; explicit false must pause the endpoint. A bool alone cannot distinguish those states after decoding.
+
+Simple explanation: Missing and false are different instructions.
+
+Reference: `internal/api/endpoints.go: endpointInput, updateEndpoint`.
+
+**4. How are errors propagated?**
+
+Strong answer: Helpers return errors, database setup wraps causes with %w, and handlers map not-found versus internal failures. Internal details go to structured logs, not client responses.
+
+Simple explanation: Keep the original cause for debugging while keeping public messages safe.
+
+Reference: `internal/database/database.go: Open; internal/api/server.go: dbError`.
+
+### Concurrency
+
+**5. Why use both slots and a jobs channel?**
+
+Strong answer: Slots are reserved before SQL claims and released after processing. They bound claimed plus active work, while the jobs channel transports jobs to fixed consumers.
+
+Simple explanation: Do not lease more work than the process can promptly handle.
+
+Reference: `internal/delivery/worker.go: Run`.
+
+**6. Can closing the channel race with a send?**
+
+Strong answer: The dispatcher is the sole sender/closer and closes only after its dispatch loop returns. Workers only receive. A WaitGroup joins consumers before resources close.
+
+Simple explanation: One owner decides when no more jobs will arrive.
+
+Reference: `internal/delivery/worker.go: Run`.
+
+**7. What prevents two workers taking the same due job?**
+
+Strong answer: The claim statement locks a candidate with FOR UPDATE SKIP LOCKED and updates its lease atomically. Other transactions skip locked candidates.
+
+Simple explanation: Database coordination works across processes; a Go mutex would not.
+
+Reference: `internal/delivery/queue.go: Claim`.
+
+**8. What happens on SIGTERM?**
+
+Strong answer: The signal context cancels claims and HTTP. The producer stops, closes jobs and waits for consumers. Unfinished leases later expire rather than being silently lost.
+
+Simple explanation: Stop work safely; leave recoverable durable state.
+
+Reference: `internal/app/app.go: Run; internal/delivery/worker.go: Run`.
+
+### REST APIs
+
+**9. Why return 202 for ingestion?**
+
+Strong answer: It acknowledges committed event/jobs, not completed HTTP delivery. Consumers use inspection endpoints to follow asynchronous state.
+
+Simple explanation: Accepted is different from delivered.
+
+Reference: `internal/api/ingest.go: ingest`.
+
+**10. When is a duplicate 200 versus 409?**
+
+Strong answer: The same project/event ID with identical canonical content returns its existing internal ID and duplicate=true. Changed content returns an idempotency conflict.
+
+Simple explanation: A retry is okay; reusing identity for another event is not.
+
+Reference: `internal/api/ingest.go; internal/events/events.go`.
+
+**11. How are lists bounded?**
+
+Strong answer: Limit defaults to 25 and is capped at 100; offset is bounded and sorting uses timestamp plus ID. Filtering is parameterized. Deep offsets remain a known cost.
+
+Simple explanation: Clients cannot request an unlimited result in one call.
+
+Reference: `internal/api/server.go: page; internal/api/inspection.go`.
+
+**12. How can an operator correlate an API error?**
+
+Strong answer: The middleware generates an X-Request-ID, places it in the error envelope and structured request log. Worker logs use event/delivery IDs for the asynchronous continuation.
+
+Simple explanation: Follow request identity into the stored event, then delivery identity.
+
+Reference: `internal/api/server.go: middleware, fail; internal/delivery/worker.go`.
+
+### PostgreSQL
+
+**13. Why store the queue in PostgreSQL?**
+
+Strong answer: The ingestion transaction inserts the event and all jobs atomically. This avoids a database/broker dual-write gap without implementing an outbox relay.
+
+Simple explanation: One commit covers accepting the event and scheduling its work.
+
+Reference: `internal/api/ingest.go; docs/decisions/002-postgresql-queue.md`.
+
+**14. Is READ COMMITTED enough for idempotency?**
+
+Strong answer: Yes for this invariant: the unique constraint arbitrates concurrent insertion, and the next statement sees a fresh committed snapshot. It does not generally eliminate every application race.
+
+Simple explanation: The unique constraint does the hard arbitration.
+
+Reference: `migrations/001_initial.sql; internal/api/ingest.go`.
+
+**15. Why partial queue indexes?**
+
+Strong answer: Pending/retrying and processing rows serve different due/expiry scans. Partial indexes retain only relevant rows, at the cost of index updates as states change.
+
+Simple explanation: Index the active work, not every historical success.
+
+Reference: `migrations/001_initial.sql: deliveries_due, deliveries_expired`.
+
+**16. What did EXPLAIN ANALYZE actually show?**
+
+Strong answer: On the included synthetic dataset the composite type/time index avoided filtering 2,475 project rows. Captured timings and buffers are in the report; one run is not a general speedup claim.
+
+Simple explanation: Read the actual plan, including filtering and planning overhead.
+
+Reference: `scripts/explain.sql; docs/query-plans.txt`.
+
+### Redis
+
+**17. Why Redis if PostgreSQL already exists?**
+
+Strong answer: Atomic, expiring token buckets coordinate API and worker replicas; a five-second cache reduces repeat metric aggregation. Durable business records stay in PostgreSQL.
+
+Simple explanation: Use Redis for short-lived coordination, not irreplaceable events.
+
+Reference: `internal/redisx/redis.go`.
+
+**18. Why Lua rather than GET then SET?**
+
+Strong answer: Separate read/modify/write commands race across clients. The script refills and spends tokens atomically using Redis's clock.
+
+Simple explanation: Only one combined operation decides whether a token is available.
+
+Reference: `internal/redisx/redis.go: bucket`.
+
+**19. What happens if Redis loses all data?**
+
+Strong answer: Events and jobs survive. Cache entries rebuild; token buckets restart full and permit a fresh burst. During outage acceptance/sending are paused rather than failing open.
+
+Simple explanation: Lost counters are tolerable; lost accepted events would not be.
+
+Reference: `internal/redisx/redis.go; internal/api/ingest.go; internal/delivery/worker.go`.
+
+**20. How is cached data invalidated?**
+
+Strong answer: Metrics keys are owner/project scoped and expire in five seconds. Mutations do not synchronously invalidate them, so totals can briefly lag. Cache failure falls back to SQL.
+
+Simple explanation: Short-lived staleness is an explicit dashboard trade-off.
+
+Reference: `internal/api/inspection.go: dashboard; internal/redisx/redis.go`.
+
+### Service boundaries
+
+**21. Are API and worker microservices?**
+
+Strong answer: They are independently runnable service-oriented processes with separate runtime responsibilities, but share a database/schema and codebase. Do not claim independent domain data ownership.
+
+Simple explanation: Separate deployment does not automatically mean fully autonomous services.
+
+Reference: `cmd/api; cmd/worker; docs/decisions/008-service-boundaries.md`.
+
+**22. Why not deliver inside the API handler?**
+
+Strong answer: Slow or failing destinations would delay ingestion and tie acceptance to their availability. Durable jobs decouple acceptance from network delivery.
+
+Simple explanation: Store work first; do slow work in the background.
+
+Reference: `internal/api/ingest.go; internal/delivery/worker.go`.
+
+**23. Why a combined demo command?**
+
+Strong answer: Free web hosting may lack a free background-worker type. The demo reuses the same API and worker lifecycle in one instance, with idle-suspension limitations.
+
+Simple explanation: A hosting compromise, not a different reliability algorithm.
+
+Reference: `cmd/demo/main.go; internal/app/app.go`.
+
+**24. What happens when replicas increase?**
+
+Strong answer: SQL row locks and Redis buckets coordinate shared work, but every replica has its own connection pool. Total connections and queue-update contention must be budgeted.
+
+Simple explanation: More processes can overload a shared dependency.
+
+Reference: `internal/database/database.go; deployments/kubernetes/workloads.yaml`.
+
+### Distributed systems
+
+**25. Is delivery exactly once?**
+
+Strong answer: No. A receiver may commit before the worker records success; a crash then causes a retry. Fencing protects database updates, not already performed HTTP effects.
+
+Simple explanation: The receiver must deduplicate its own side effects.
+
+Reference: `internal/delivery/queue.go: Finish; docs/architecture.md`.
+
+**26. What does the lease token prevent?**
+
+Strong answer: After a job is reclaimed, an old worker's token no longer matches. Its late completion is rejected before an attempt/status update.
+
+Simple explanation: Old owners cannot overwrite new owners' database state.
+
+Reference: `internal/delivery/queue.go: Claim, Finish; tests/integration_test.go`.
+
+**27. Why exponential jitter?**
+
+Strong answer: Repeated failures progressively back off while randomizing retry times, reducing synchronized bursts. A cap and finite budget keep behavior bounded.
+
+Simple explanation: Wait longer after repeated trouble, and avoid everyone retrying together.
+
+Reference: `internal/delivery/retry.go: Backoff`.
+
+**28. What is eventual consistency here?**
+
+Strong answer: A committed event exists before its deliveries finish, and dashboard aggregates can be cached for five seconds. Detail reads and metrics can briefly differ.
+
+Simple explanation: The system's views catch up as background work and cache expiry progress.
+
+Reference: `internal/api/inspection.go; frontend/src/App.tsx`.
+
+### System design
+
+**29. How would you scale to ten million events/day?**
+
+Strong answer: First measure fan-out, burst rate, destination latency, queue age and database pressure. Then add retention/rollups/partitioning and consider an outbox plus broker. Current tests do not establish that scale.
+
+Simple explanation: Daily count alone is not a sizing model.
+
+Reference: `docs/performance.md; docs/INTERVIEW_HANDBOOK.md section 8`.
+
+**30. Why not Kafka now?**
+
+Strong answer: The current workload benefits from atomic SQL scheduling and simple operational setup. Kafka would add partition/offset/replay concerns and still require solving database publication consistency.
+
+Simple explanation: Choose a broker when measured pressure justifies its cost.
+
+Reference: `docs/decisions/002-postgresql-queue.md`.
+
+**31. What would trigger autoscaling?**
+
+Strong answer: Sustained oldest-due-job age and backlog relative to completion rate are more informative than CPU alone for I/O-bound workers. Respect endpoint limits and DB connections.
+
+Simple explanation: Scale to clear legitimate backlog, not to hammer a failing receiver.
+
+Reference: `internal/delivery/worker.go; docs/architecture.md`.
+
+**32. What is the first large-history optimization?**
+
+Strong answer: Measure queries, then replace deep offsets with keyset pagination, use metric rollups and introduce retention/partitioning. Do not shard before showing a database bottleneck.
+
+Simple explanation: Reduce unnecessary work before splitting databases.
+
+Reference: `internal/api/inspection.go; migrations/001_initial.sql`.
+
+### Docker and Kubernetes
+
+**33. Why multi-stage Docker builds?**
+
+Strong answer: Node compiles static assets and Go compiles executables in build stages; only artifacts and CA certificates reach the non-root runtime.
+
+Simple explanation: Smaller runtime with fewer build tools exposed.
+
+Reference: `deployments/docker/Dockerfile`.
+
+**34. Why does receiver resolve in Compose but not on the host?**
+
+Strong answer: Compose provides DNS on its network for service names. Native processes use localhost and published ports instead. Browser requests go to the frontend/API origin.
+
+Simple explanation: Inside-container and host addresses are different.
+
+Reference: `compose.yaml; README.md`.
+
+**35. What is readiness versus liveness?**
+
+Strong answer: Liveness checks the process; readiness checks PostgreSQL and Redis too. A dependency outage should remove readiness without provoking a restart loop.
+
+Simple explanation: Alive does not always mean able to serve useful work.
+
+Reference: `internal/api/server.go: ready; deployments/kubernetes/workloads.yaml`.
+
+**36. Are Secrets encrypted by base64?**
+
+Strong answer: No. Kubernetes Secret encoding is not encryption. Use cluster encryption/access control and an external secret workflow; never commit actual credentials.
+
+Simple explanation: Base64 hides nothing from someone who can read it.
+
+Reference: `deployments/kubernetes/README.md`.
+
+### CI/CD
+
+**37. What does CI execute?**
+
+Strong answer: Formatting, vet, race-enabled tests with real services, frontend lint/unit/build, all command builds, shell checks, Docker builds and Compose/browser smoke tests.
+
+Simple explanation: The repository is checked at code, service and packaged-system levels.
+
+Reference: `.github/workflows/ci.yml`.
+
+**38. How can a green unit suite miss a failure?**
+
+Strong answer: Unit tests cannot detect a wrong container URL, runtime environment, migration startup order or browser layout difference. The container workflow covers those paths.
+
+Simple explanation: Test the packaged system as well as isolated functions.
+
+Reference: `.github/workflows/ci.yml: containers`.
+
+**39. Is CI the same as deployment?**
+
+Strong answer: No. Passing checks produces confidence, while CD rolls an artifact to an environment. The repository includes a Render recipe but no unverified live deployment claim.
+
+Simple explanation: Build success does not create a verified public service.
+
+Reference: `render.yaml; docs/deployment.md`.
+
+**40. What real defects did validation expose?**
+
+Strong answer: Tests caught a route-pattern conflict, a load-generator timer variable compile error, a browser selector issue and Linux mobile table overflow. Their normal fix commits preserve the history.
+
+Simple explanation: Use genuine debugging evidence, not invented war stories.
+
+Reference: `git log; frontend/e2e/workflow.spec.ts; internal/api/server.go`.
+
+### Testing
+
+**41. What is mocked in the integration test?**
+
+Strong answer: The receiver behavior is synthetic but it is a real HTTP server. PostgreSQL, Redis, API handlers and worker execution are real. Frontend unit tests separately mock fetch.
+
+Simple explanation: Simulate the remote business system while testing actual network/storage behavior.
+
+Reference: `tests/integration_test.go; frontend/src/api.test.ts`.
+
+**42. How is concurrent idempotency tested?**
+
+Strong answer: Twelve goroutines submit the same event. Exactly one must return 202, others 200, and the database must have one delivery for the endpoint. Changed content must return 409.
+
+Simple explanation: Force the race instead of testing two sequential calls only.
+
+Reference: `tests/integration_test.go: TestIntegrationWorkflow`.
+
+**43. What does the race detector prove?**
+
+Strong answer: It detects conflicting unsynchronized memory accesses exercised by that run. It does not prove all schedules safe or check SQL isolation and external effects.
+
+Simple explanation: It catches a class of runtime bugs, not every concurrency bug.
+
+Reference: `scripts/test.sh; tests/integration_test.go`.
+
+**44. Why not claim the benchmark as capacity?**
+
+Strong answer: Only 60 events per pool size were tested with a warm loopback 10 ms receiver. Token-bucket burst capacity also inflates short ingestion rates above sustainable policy.
+
+Simple explanation: Report the exact experiment and its limits.
+
+Reference: `tests/performance_test.go; docs/performance.md`.
+
+### Production debugging
+
+**45. Where would you start with rising latency?**
+
+Strong answer: Separate queue wait from attempt duration, compare endpoint distribution, inspect worker saturation, bucket limits and SQL/pool waits. More workers may not help a throttled endpoint.
+
+Simple explanation: Find where time is spent before changing capacity.
+
+Reference: `delivery_attempts schema; internal/delivery/worker.go`.
+
+**46. Why is a delivery stuck in processing?**
+
+Strong answer: Its worker may have crashed or lost database access. Check lease_until, process health and whether another worker is polling. Recovery happens after expiry, not immediately.
+
+Simple explanation: A processing row can be waiting for crash recovery.
+
+Reference: `internal/delivery/queue.go: Claim`.
+
+**47. Why does the dashboard differ from a delivery detail?**
+
+Strong answer: The aggregate cache can lag for five seconds; filters and ownership scopes can also differ. Verify the durable row and network response before assuming data corruption.
+
+Simple explanation: Cached totals are approximate views of live work.
+
+Reference: `internal/api/inspection.go: dashboard`.
+
+**48. How should dead-letter replay be used?**
+
+Strong answer: Inspect the error and fix the endpoint or receiver first. Replay starts a new generation with preserved history; blindly replaying a permanent failure wastes capacity.
+
+Simple explanation: Repair the cause before resubmitting the work.
+
+Reference: `internal/api/inspection.go: replay; frontend/src/App.tsx: DeliveryDetails`.
+
+### Security
+
+**49. Why hash API keys but encrypt webhook secrets?**
+
+Strong answer: High-entropy API keys are only compared, so storing a hash is enough. Signing requires recovering the webhook secret, so authenticated encryption is necessary.
+
+Simple explanation: Compare-only credentials and recoverable signing keys have different needs.
+
+Reference: `internal/security/security.go; internal/api/projects.go`.
+
+**50. Why sign timestamp plus payload?**
+
+Strong answer: It binds both freshness metadata and exact body bytes to the secret. The receiver rejects stale timestamps and compares decoded MACs in constant time.
+
+Simple explanation: Tampering with the message or time breaks verification.
+
+Reference: `internal/security/security.go: Sign, Verify`.
+
+**51. How is SSRF reduced?**
+
+Strong answer: Require HTTPS outside demo mode, reject userinfo and unsafe addresses, resolve/check all IPs at dial time, dial the validated IP, disable redirects and environment proxies.
+
+Simple explanation: An attacker cannot simply point a webhook at local metadata or rebind DNS between checks.
+
+Reference: `internal/security/transport.go`.
+
+**52. How is tenant isolation enforced?**
+
+Strong answer: Session identity scopes project ownership in SQL. Inspection joins through projects; endpoint/key mutations check the same owner boundary. A second account's access is tested as 404.
+
+Simple explanation: Knowing another resource ID is not authorization.
+
+Reference: `internal/api/projects.go; internal/api/inspection.go; tests/integration_test.go`.
