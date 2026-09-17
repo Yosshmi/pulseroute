@@ -218,7 +218,8 @@ experiment; [actual captured plans](docs/query-plans.txt) are included.
   production deployment. API/worker deployments, services, probes, limits, ConfigMap,
   external Secret reference and migration Job.
 - [Architecture](docs/architecture.md) and [eight ADRs](docs/decisions/).
-- [INTERVIEW_HANDBOOK.md](docs/INTERVIEW_HANDBOOK.md): teaching guide and 50+ questions.
+- The personal interview handbook and revision sheet are maintained locally and
+  excluded from this repository.
 - [CODE_WALKTHROUGH.md](docs/CODE_WALKTHROUGH.md): study order and function index.
 - [RESUME_NOTES.md](docs/RESUME_NOTES.md): demonstrable claims and follow-up questions.
 

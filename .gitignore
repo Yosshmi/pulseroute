@@ -11,3 +11,6 @@ artifacts/
 *.exe
 coverage.out
 *.tsbuildinfo
+
+docs/INTERVIEW_HANDBOOK.md
+docs/CHEAT_SHEET.md
