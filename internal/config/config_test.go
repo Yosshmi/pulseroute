@@ -6,6 +6,8 @@ import (
 )
 
 func TestConfiguration(t *testing.T) {
+	t.Setenv("ALLOW_PRIVATE_ENDPOINTS", "")
+	t.Setenv("COOKIE_SECURE", "")
 	t.Setenv("DATABASE_URL", "postgres://localhost/test")
 	t.Setenv("ENCRYPTION_KEY", strings.Repeat("ab", 32))
 	t.Setenv("WORKERS", "5")
