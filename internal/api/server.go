@@ -50,7 +50,7 @@ func (s *Server) Handler() http.Handler {
 		m.Handle(route, s.auth(h))
 	}
 	m.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { fail(w, r, 404, "NOT_FOUND", "route not found") })
-	m.Handle("GET /", http.FileServer(http.Dir(s.Config.StaticDir)))
+	m.Handle("/", http.FileServer(http.Dir(s.Config.StaticDir)))
 	return s.middleware(m)
 }
 func write(w http.ResponseWriter, status int, v any) {
