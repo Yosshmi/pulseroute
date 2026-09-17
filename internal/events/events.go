@@ -1,6 +1,7 @@
 package events
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"pulseroute/internal/security"
@@ -29,7 +30,9 @@ func (v Input) Validate() error {
 }
 func (v Input) Canonical() ([]byte, string, error) {
 	var data any
-	d := json.Unmarshal(v.Data, &data)
+	decoder := json.NewDecoder(bytes.NewReader(v.Data))
+	decoder.UseNumber()
+	d := decoder.Decode(&data)
 	if d != nil {
 		return nil, "", d
 	}
