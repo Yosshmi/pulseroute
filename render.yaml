@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: pulseroute-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deployments/docker/Dockerfile
+    dockerCommand: /app/bin/demo
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ALLOW_PRIVATE_ENDPOINTS
+        value: "false"
+      - key: WORKERS
+        value: "2"
+      - key: POLL_INTERVAL
+        value: "5s"
