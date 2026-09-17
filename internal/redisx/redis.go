@@ -1,11 +1,26 @@
 package redisx
 
-import("context";"encoding/json";"time";"github.com/redis/go-redis/v9")
+import (
+	"context"
+	"encoding/json"
+	"github.com/redis/go-redis/v9"
+	"time"
+)
 
-func Open(raw string)(*redis.Client,error){o,e:=redis.ParseURL(raw);if e!=nil{return nil,e};o.DialTimeout=2*time.Second;o.ReadTimeout=2*time.Second;o.WriteTimeout=2*time.Second;o.MaxRetries=0;return redis.NewClient(o),nil}
+func Open(raw string) (*redis.Client, error) {
+	o, e := redis.ParseURL(raw)
+	if e != nil {
+		return nil, e
+	}
+	o.DialTimeout = 2 * time.Second
+	o.ReadTimeout = 2 * time.Second
+	o.WriteTimeout = 2 * time.Second
+	o.MaxRetries = 0
+	return redis.NewClient(o), nil
+}
 
 // Redis TIME keeps all API/worker replicas on one rate-limit clock.
-var bucket=redis.NewScript(`
+var bucket = redis.NewScript(`
 local t=redis.call('TIME')
 local now=tonumber(t[1])+tonumber(t[2])/1000000
 local rate=tonumber(ARGV[1])
@@ -20,6 +35,18 @@ redis.call('HSET',KEYS[1],'tokens',tokens,'time',now)
 redis.call('EXPIRE',KEYS[1],math.ceil(capacity/rate)+60)
 return allowed
 `)
-func Allow(ctx context.Context,r *redis.Client,key string,rate,capacity int)(bool,error){n,e:=bucket.Run(ctx,r,[]string{"limit:"+key},rate,capacity).Int();return n==1,e}
-func Cached(ctx context.Context,r *redis.Client,key string,dst any)bool{b,e:=r.Get(ctx,key).Bytes();return e==nil&&json.Unmarshal(b,dst)==nil}
-func Cache(ctx context.Context,r *redis.Client,key string,value any){b,e:=json.Marshal(value);if e==nil{_ = r.Set(ctx,key,b,5*time.Second).Err()}}
+
+func Allow(ctx context.Context, r *redis.Client, key string, rate, capacity int) (bool, error) {
+	n, e := bucket.Run(ctx, r, []string{"limit:" + key}, rate, capacity).Int()
+	return n == 1, e
+}
+func Cached(ctx context.Context, r *redis.Client, key string, dst any) bool {
+	b, e := r.Get(ctx, key).Bytes()
+	return e == nil && json.Unmarshal(b, dst) == nil
+}
+func Cache(ctx context.Context, r *redis.Client, key string, value any) {
+	b, e := json.Marshal(value)
+	if e == nil {
+		_ = r.Set(ctx, key, b, 5*time.Second).Err()
+	}
+}
