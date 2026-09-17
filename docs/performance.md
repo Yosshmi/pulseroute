@@ -49,4 +49,12 @@ The composite index starts with equality fields and ends with the ordering field
 allowing an ordered limited scan. Its costs are storage, write amplification, and
 vacuum/index maintenance. The planner may prefer a sequential scan for small or
 low-selectivity datasets; forcing an index is not a performance fix. No index
-speedup is claimed without the captured EXPLAIN ANALYZE output.
+speedup should be claimed without the captured EXPLAIN ANALYZE output.
+
+Actual capture: [query-plans.txt](query-plans.txt). On this local dataset the indexed
+query used an index-only scan, 28 shared buffer hits, 25 heap fetches, and 0.132 ms
+execution. Removing the type/time index selected a project/time scan with 2,475
+rows filtered, 84 buffer hits, and 0.337 ms execution. Planning took 2.568 ms versus
+0.736 ms, respectively. This single warm-cache experiment is evidence of access-path
+selection, not a statistically meaningful latency improvement claim. Both schema
+and synthetic rows were rolled back after measurement.

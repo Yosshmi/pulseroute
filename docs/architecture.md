@@ -58,8 +58,8 @@ No Redis idempotency cache is used: avoiding a stale negative cache is simpler.
 
 ```mermaid
 flowchart TD
-  Claim[Claim one due row with SKIP LOCKED] --> Slots[Acquire bounded capacity]
-  Slots --> Channel[Buffered jobs channel]
+  Slots[Acquire bounded capacity] --> Claim[Claim one due row with SKIP LOCKED]
+  Claim --> Channel[Buffered jobs channel]
   Channel --> W1[Worker 1]
   Channel --> W2[Worker 2]
   Channel --> WN[Worker N]
@@ -68,8 +68,7 @@ flowchart TD
   WN --> Finish
 ```
 
-Implementation acquires a capacity slot **before** claiming; the diagram's claim
-node describes the scheduler, not a second unbounded queue. At most N jobs are
+Implementation acquires a capacity slot **before** claiming. At most N jobs are
 claimed or active per process. N goroutines drain a buffered channel. PostgreSQL
 retains the rest of the backlog. A lease defaults to 60s, and configuration requires
 at least three times the 10s HTTP timeout. Completion takes a row lock and checks

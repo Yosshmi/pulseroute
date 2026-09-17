@@ -240,6 +240,8 @@ nav a:hover {
   margin: 18px 0 25px;
 }
 .panel {
+  min-width: 0;
+  overflow-x: auto;
   background: white;
   border: 1px solid #dfe6e3;
   border-radius: 8px;
