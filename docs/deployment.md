@@ -1,8 +1,24 @@
 # Free deployment decision
 
-Provider documentation checked on 2026-09-17. No cloud resources were created and
-no money was spent. The GitHub repository is public; a public application URL is
-not claimed until its register → ingest → delivery workflow is verified.
+## Current public demo
+
+Live application: https://pulseroute-demo.onrender.com/
+
+Deployed and verified on 2026-10-07 using Render Free (combined API, worker and
+frontend), Neon Free PostgreSQL, and Render Free Key Value in Singapore. The test
+receiver is a separate Render Free Go service built with `go build -trimpath -o
+receiver ./cmd/receiver` and started with `./receiver`. All resources use Free plans.
+Credentials are kept in provider environment settings, never in this repository.
+
+Verified: readiness, registration, project and endpoint creation, event ingestion,
+duplicate acceptance, conflicting duplicate rejection, HMAC-verified delivery,
+two HTTP 500 retries followed by HTTP 200, and permanent HTTP 400 dead letters.
+
+## Hosting options
+
+The original deployment comparison below was checked on 2026-09-17. Upstash is
+an alternative; the deployed demo uses Render Free Key Value (25 MB, 50 connections,
+no persistence) on the internal network. Persistent delivery state is in PostgreSQL.
 
 | Option checked | Relevant constraint | Decision |
 |---|---|---|
@@ -50,6 +66,6 @@ sleep can itself cause timeouts; that is a real demonstration of the retry path.
 The receiver responds to `/health` without a signature and verifies webhook POSTs.
 
 GitHub Actions performs CI and container smoke tests. Render's Git integration can
-redeploy `main` after connection, but no live CD success is claimed here. Prefer
+redeploy `main` after connection, and the initial live deployment has been verified. Prefer
 deploying only commits whose quality workflow has passed. Kubernetes manifests are
 provided separately; they are not the selected free demo environment.
