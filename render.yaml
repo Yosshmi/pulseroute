@@ -3,6 +3,7 @@ services:
     name: pulseroute-demo
     runtime: docker
     plan: free
+    region: singapore
     dockerfilePath: ./deployments/docker/Dockerfile
     dockerCommand: /app/bin/demo
     healthCheckPath: /health
