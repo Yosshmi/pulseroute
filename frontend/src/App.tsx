@@ -231,8 +231,13 @@ export function App() {
 }
 function Login({ onDone }: { onDone: () => void }) {
   const [register, setRegister] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const publicDemo = window.location.hostname === "pulseroute-demo.onrender.com";
+  const demoEmail = "demo@pulseroute.test";
+  const demoPassword = "MS8oV_wFJUFaZw5jPLQD3Uf8Df-Uvm-g";
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -280,9 +285,47 @@ function Login({ onDone }: { onDone: () => void }) {
         <p className="eyebrow">YOUR OPERATIONS WORKSPACE</p>
         <h2>{register ? "Create your account" : "Welcome back"}</h2>
         <p>Use synthetic data in this portfolio demo.</p>
+        {publicDemo && !register && (
+          <section className="demo-access" aria-label="Recruiter demo access">
+            <strong>Explore the recruiter demo</strong>
+            <p>
+              See successful deliveries, retries, and failed events. No signup
+              needed.
+            </p>
+            <dl>
+              <div>
+                <dt>Email</dt>
+                <dd><code>{demoEmail}</code></dd>
+              </div>
+              <div>
+                <dt>Password</dt>
+                <dd><code>{demoPassword}</code></dd>
+              </div>
+            </dl>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setEmail(demoEmail);
+                setPassword(demoPassword);
+                setError("");
+              }}
+            >
+              Use demo credentials
+            </button>
+            <small>Shared workspace. Please use fictional data only.</small>
+          </section>
+        )}
         <form onSubmit={submit}>
           <Field label="Email">
-            <input name="email" type="email" required autoComplete="email" />
+            <input
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </Field>
           <Field label="Password">
             <input
@@ -291,6 +334,8 @@ function Login({ onDone }: { onDone: () => void }) {
               minLength={12}
               maxLength={72}
               required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               autoComplete={register ? "new-password" : "current-password"}
             />
           </Field>
