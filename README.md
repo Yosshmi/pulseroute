@@ -24,6 +24,20 @@ visible without pretending HTTP delivery is exactly once.
 - Configurable signed receiver, synthetic seeding and measured performance tooling.
 - Unit, real-service integration and browser tests; Compose, CI and Kubernetes files.
 
+## Live demo
+
+[Open PulseRoute](https://pulseroute-demo.onrender.com/)
+
+Create an account with fictional information to use your own workspace. The hosted
+portfolio demo runs on Render Free with Neon Free PostgreSQL and Render Free Key
+Value in Singapore. It sleeps after inactivity; allow about a minute for startup.
+Queued work pauses while the application sleeps and resumes when it wakes.
+
+The deployed workflow was verified on 2026-10-07: event acceptance, duplicate
+idempotency, conflicting duplicate rejection, signed successful delivery,
+500 → 500 → 200 retries, and permanent 400 dead-letter handling. The included
+receiver is hosted separately for controlled synthetic delivery tests.
+
 ## Run locally
 
 Requirements: Docker Engine with Compose, Bash and OpenSSL (Git Bash on Windows).
@@ -213,7 +227,7 @@ experiment; [actual captured plans](docs/query-plans.txt) are included.
 ## Deployment and study material
 
 - [Free deployment](docs/deployment.md): Render combined demo, Neon and Upstash.
-  Provider accounts required; no verified public application URL claimed.
+  Provider accounts required; the current public demo is linked above.
 - [Kubernetes](deployments/kubernetes/README.md): manifests provided, not a live
   production deployment. API/worker deployments, services, probes, limits, ConfigMap,
   external Secret reference and migration Job.
